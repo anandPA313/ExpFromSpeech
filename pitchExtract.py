@@ -11,15 +11,20 @@ import matplotlib.pyplot as plt
 
 def freq_from_autocorr(sig, fs):
 
+    # Find out autocorerlation of the frame
     corr = fftconvolve(sig, sig[::-1], mode='full')
+    
+    # We're not interested in negative delays. NOTE // returns integer after division
     corr = corr[len(corr)//2:]
 
-    # Find the first low point
+    # Find the first peak
     d = diff(corr)
     start = find(d > 0)[0]
-
+    
+    # Next peak
     peak = argmax(corr[start:]) + start
 
+    # Convert it to freq and return.
     return float(fs) / peak
 
 
