@@ -1,35 +1,38 @@
 from numpy import argmax, diff
 from matplotlib.mlab import find
 from scipy.signal import fftconvolve
+from scipy.signal import medfilt
 import sys
 import wave
 import struct
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import os
 
+dir = './audioSamples/'
+pitchDir = './pitch/'
 
 def freq_from_autocorr(sig, fs):
 
-    # Find out autocorerlation of the frame
     corr = fftconvolve(sig, sig[::-1], mode='full')
-    
-    # We're not interested in negative delays. NOTE // returns integer after division
     corr = corr[len(corr)//2:]
 
-    # Find the first peak
+    # Find the first low point
     d = diff(corr)
+
+    # Patch 2: what if the frame is monotonicaly decreasing?
+    if len(find(d>0))==0:
+        return 0
     start = find(d > 0)[0]
-    
-    # Next peak
+
     peak = argmax(corr[start:]) + start
 
-    # Convert it to freq and return.
     return float(fs) / peak
 
 
 
-def readWav(path):
+def readWav(wavPath):
 
     waveFile = wave.open(wavPath)
     fs = waveFile.getframerate()
@@ -51,53 +54,59 @@ if __name__ == "__main__":
 
     # wavPath = sys.argv[1]
     # Or if you prefer, specify the sound file path here.
-    wavPath = './bloomingdales1.wav'
+    files = os.listdir(dir)
+    for i in range(0,len(files)):
 
-    # Pitch values will be stores in this file
-    OUTFILE = './pitch.txt'
+        fileName = files[i]
 
-    x, fs, length = readWav(wavPath)
+        # Pitch values will be stores in this file
+        OUTFILE = pitchDir+fileName[0:-4]+'.txt'
 
-    # Getting the time values.
-    t = np.arange(start=float(1)/fs,stop=float(length)/fs,step=float(1)/fs)
+        x, fs, length = readWav(dir+fileName)
 
-    windowSize = 20e-3
-    shiftSize = 10e-3
-    endVal = t[-1]
+        # Getting the time values.
+        t = np.arange(start=float(1)/fs,stop=float(length)/fs,step=float(1)/fs)
 
-    nShifts = math.floor((endVal-windowSize)/shiftSize)
-    startTime = 0; endTime = windowSize
-    pitch = []; time = []
-    for i in range(0,int(nShifts)):
+        windowSize = 30e-3
+        shiftSize = 20e-3
+        endVal = t[-1]
 
-        # We have start and end time for this window.
-        # We need start and end indices for this window so that
-        # we can get the frame corresponding to the timings.
-        for kk in range(0,len(t)):
-            if t[kk]>startTime:
-                startIdx = kk
-                break
-        for kk in range(0,len(t)):
-            if t[kk]>endTime:
-                endIdx = kk-1
-                break
-        frame = x[0][startIdx:endIdx]       # Got the frame
+        nShifts = math.floor((endVal-windowSize)/shiftSize)
+        startTime = 0; endTime = windowSize
+        pitch = []; time = []
+        for i in range(0,int(nShifts)):
 
-        # Get the fundamental freq for this frame
-        pitchFrame = freq_from_autocorr(frame, fs)
+            # We have start and end time for this window.
+            # We need start and end indices for this window so that
+            # we can get the frame corresponding to the timings.
+            for kk in range(0,len(t)):
+                if t[kk]>startTime:
+                    startIdx = kk
+                    break
+            for kk in range(0,len(t)):
+                if t[kk]>endTime:
+                    endIdx = kk-1
+                    break
+            frame = x[0][startIdx:endIdx]       # Got the frame
 
-        # Add the new value
-        pitch.append(pitchFrame)
-        time.append(startTime)
+            # Get the fundamental freq for this frame
+            pitchFrame = freq_from_autocorr(frame, fs)
 
-        # Move the window 10 ms towards the right
-        startTime = startTime+shiftSize
-        endTime = endTime+shiftSize
+            # Add the new value :EDIT: if it's realistic.
+            if pitchFrame < 1000:
+                pitch.append(pitchFrame)
+            else:
+                pitch.append(pitchFrame)
+            time.append(startTime)
 
-    # Plot the values
-    plt.plot(time, pitch)
-    plt.ylabel('Hz'); plt.xlabel('seconds')
-    plt.show()
+            # Move the window 10 ms towards the right
+            startTime = startTime+shiftSize
+            endTime = endTime+shiftSize
+        pitch = medfilt(pitch, kernel_size=3)
+        #Plot the values
+        # plt.plot(time, pitch)
+        # plt.ylabel('Hz'); plt.xlabel('seconds')
+        # plt.show()
 
-    # Save the results.
-    np.savetxt(OUTFILE, zip(time, pitch), fmt='%.4f')
+        # Save the results.
+        np.savetxt(OUTFILE, zip(time, pitch), fmt='%.4f')
