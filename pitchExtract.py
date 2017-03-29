@@ -10,9 +10,17 @@ import math
 import matplotlib.pyplot as plt
 import os
 
+# This opens up the folder containing the audio files and prints the pitch
+# values corresponding to each audio in a separate file in a pitch directory
+
+# Directory where the audio samples are
 dir = './audioSamples/'
+
+# Directory where the pitch samples are
 pitchDir = './pitch/'
 
+
+# Function to calculate the pitch from autocorrelation
 def freq_from_autocorr(sig, fs):
 
     corr = fftconvolve(sig, sig[::-1], mode='full')
@@ -22,6 +30,8 @@ def freq_from_autocorr(sig, fs):
     d = diff(corr)
 
     # Patch 2: what if the frame is monotonicaly decreasing?
+    # Theb find(d>0) would return an empty array and cause problems 
+    # in the find() call in the next line
     if len(find(d>0))==0:
         return 0
     start = find(d > 0)[0]
@@ -31,7 +41,7 @@ def freq_from_autocorr(sig, fs):
     return float(fs) / peak
 
 
-
+# Function to read the audio samples
 def readWav(wavPath):
 
     waveFile = wave.open(wavPath)
@@ -50,11 +60,10 @@ def readWav(wavPath):
 
 if __name__ == "__main__":
 
-    # Usage: $python readWav.py 'inputSpeech.wav'
-
-    # wavPath = sys.argv[1]
-    # Or if you prefer, specify the sound file path here.
+    # This opens all the files in the directory and stores in a list
+    # the filenames
     files = os.listdir(dir)
+    
     for i in range(0,len(files)):
 
         fileName = files[i]
@@ -92,14 +101,14 @@ if __name__ == "__main__":
             # Get the fundamental freq for this frame
             pitchFrame = freq_from_autocorr(frame, fs)
 
-            # Add the new value :EDIT: if it's realistic.
+            # Add the new value :EDIT: take it only if it's realistic.
             if pitchFrame < 1000:
                 pitch.append(pitchFrame)
             else:
-                pitch.append(pitchFrame)
+                pitch.append(nan)
             time.append(startTime)
 
-            # Move the window 10 ms towards the right
+            # Move the window 20 ms towards the right
             startTime = startTime+shiftSize
             endTime = endTime+shiftSize
         pitch = medfilt(pitch, kernel_size=3)
